@@ -40,7 +40,7 @@ platforms:
               secret_name: FINANCE_TRANSPORT_KEY
 ```
 
-The factory's package is provided by the separate Finance client PR, not vendored
+The factory's package is provided by yanwuchen/hermes-finance#41, not vendored
 into Hermes. A scoped secret name is a reference, never a key value. Finance
 service activation, private address/TLS, scoped key provisioning, owner setup and
 live acceptance require their own reviewed steps. The current Finance production
@@ -55,7 +55,10 @@ response with a valid non-local platform ID is required for acceptance. A timeou
 may have sent the message: record UNKNOWN, do not blindly resend.
 
 The external client decides the protected syntax and independently checks the
-canonical routing identity plus local ACL. Finance validates the signed scope,
+canonical routing identity plus local ACL. The first Finance client requires
+explicit QQ dm_policy=allowlist; ordinary pairing intake is not financial
+authorization. Pairing/open modes refuse Finance calls while preserving the
+existing ordinary chat/handshake behavior. Finance validates the signed scope,
 owner/epoch, permissions, current query and durable delivery. The client must
 check original binding and deadline, claim, obtain a permit immediately before
 sending, and return a signed receipt. Hermes does not recreate Finance's
