@@ -176,6 +176,9 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
         self._interaction_callback: Optional[Callable[[InteractionEvent], Awaitable[None]]] = (
             self._default_interaction_dispatch)
 
+        from .intake_guard import IntakeGuard
+        self._intake_guard = IntakeGuard(self, extra.get("intake_guard"))
+
     # ── Properties ──
 
     @property
@@ -555,7 +558,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
         try:
             payload = json.loads(raw)
         except Exception:
-            logger.warning("[QQBot] Failed to parse JSON: %r", raw)
+            logger.warning("[QQBot] Failed to parse JSON")
             return None
         return payload if isinstance(payload, dict) else None
 
@@ -576,6 +579,8 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
 
     async def _on_message(self, event_type: str, d: Any) -> None:
         if not isinstance(d, dict):
+            return
+        if not await self._intake_guard.allow(event_type, d):
             return
         msg_id = str(d.get("id", ""))
         if not msg_id or self._dedup.is_duplicate(msg_id):
@@ -1371,6 +1376,29 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
                 return last_result
             reply_to = None  # only reply_to the first chunk
         return last_result
+
+    async def send_private_c2c(self, chat_id: str, content: str, reply_to: str, *, timeout: float = 5.0) -> SendResult:
+        """One bounded send through THIS receiving bot; no retry or body logging.
+
+        Normal send() can retry and log remote errors, and fabricates a local
+        fallback ID when QQ omits one. Restricted replies require stronger proof.
+        """
+        unknown = SendResult(success=False, error="private_delivery_unknown", retryable=False)
+        valid_id = lambda value: isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", value)
+        if not valid_id(chat_id) or not valid_id(reply_to) or not isinstance(content, str):
+            return unknown
+        if not content.strip() or len(content) > self.MAX_MESSAGE_LENGTH or not self.is_connected:
+            return unknown
+        try:
+            content.encode("utf-8")
+            result = await asyncio.wait_for(self._send_c2c_text(chat_id, content, reply_to), timeout)
+            raw = result.raw_response
+            platform_id = raw.get("id") if type(raw) is dict else None
+            if result.success and valid_id(platform_id) and not platform_id.lower().startswith("local-"):
+                return SendResult(success=True, message_id=platform_id)
+        except Exception:
+            pass  # QQ error bodies may echo the restricted message; never log them.
+        return unknown
 
     _PERMANENT_SEND_ERRORS = ("invalid", "forbidden", "not found")
 
