@@ -1,6 +1,7 @@
 """Opt-in Finance consumer at the existing raw QQ gate. No agent/model calls."""
 from __future__ import annotations
 
+import asyncio
 from dataclasses import asdict, dataclass, field
 import hashlib
 import re
@@ -80,6 +81,12 @@ class FinanceIntentRouter(HermesQQClient):
         await self._deliver(client,binding,identity)
 
     async def __call__(self, event_type, payload):
+        try:
+            return await asyncio.wait_for(self._consume(event_type,payload),20)
+        except asyncio.TimeoutError:
+            return False
+
+    async def _consume(self, event_type, payload):
         if type(payload) is not dict:
             return False
         text=payload.get("content","")

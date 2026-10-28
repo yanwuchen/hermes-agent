@@ -11,6 +11,8 @@ import zlib
 import httpx
 import pytest
 
+pytest.importorskip("hermes_finance", reason="optional companion Finance integration lane")
+
 from gateway.config import PlatformConfig
 from gateway.platforms.qqbot.adapter import QQAdapter
 from gateway.platforms.qqbot.intake_guard import IntakeGuard
@@ -184,4 +186,35 @@ def test_unconfigured_and_outage_chat_pass_sensitive_closed(rig):
                 assert await guard("C2C_MESSAGE_CREATE",packet(text)) is True
             for text in ("记账 午饭 25 元","4000","确认 "+"ab"*24):
                 assert await guard("C2C_MESSAGE_CREATE",packet(text)) is False
+    asyncio.run(run())
+
+
+def test_router_has_a_finite_total_budget(rig,monkeypatch):
+    r=rig
+    async def timed_out(*args,**kwargs):
+        args[0].close()
+        raise asyncio.TimeoutError
+    monkeypatch.setattr(asyncio,"wait_for",timed_out)
+    guard=FinanceIntentRouter(r.adapter,r.settings,clock=lambda:r.now[0])
+    assert asyncio.run(guard("C2C_MESSAGE_CREATE",packet("你好"))) is False
+
+
+def test_image_path_can_complete_after_default_five_second_guard_budget(rig):
+    r=rig
+    async def slow_fetch(url,mime):
+        await asyncio.sleep(5.1)
+        return png()
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(r.qq)) as qq, httpx.AsyncClient(
+                transport=httpx.ASGITransport(r.app)) as finance:
+            r.adapter._http_client=qq
+            consumer=FinanceIntentRouter(r.adapter,r.settings,http_client=finance,
+                                         image_fetcher=slow_fetch,clock=lambda:r.now[0])
+            outer=IntakeGuard(r.adapter,None)
+            outer.enabled=True;outer.consumer=consumer;outer.timeout=30
+            await consumer("C2C_MESSAGE_CREATE",packet("记账截图","trigger"))
+            await outer.allow("C2C_MESSAGE_CREATE",packet(event="image",attachments=[{
+                "content_type":"image/png","url":"https://c2cpicdw.qpic.cn/fictitious.png"}]))
+            assert r.ocr_calls==[(len(png()),"image/png")]
+            assert "25.00 元" in r.sent[-1]
     asyncio.run(run())

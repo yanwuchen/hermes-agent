@@ -45,3 +45,14 @@ This is not real QQ or Pi acceptance. Deployment requires separately reviewed
 release SHAs, backups, configuration/CA/allowlist verification and manual tests.
 Rollback disables the selected factory/receipt setting and restores the reviewed
 Gateway pointer, without DB downgrade, deletion or unrelated service changes.
+
+
+The enclosing existing intake_guard MUST explicitly use timeout_seconds: 30
+when selecting this receipt factory; the generic 5-second default is not a
+receipt budget. FinanceIntentRouter caps its complete consumer at20 seconds
+(download up to5, upload up to10, remaining time for status/delivery), leaving
+10 seconds before the enclosing30-second deadline. Any timeout stays closed,
+consumes the claim and requires Web inspection; it never retries blindly.
+Ordinary Hermes installs may omit the companion package: this optional
+integration module is skipped before router import. The provisioned Finance
+CI lane installs the exact companion source and must run it without skipping.
