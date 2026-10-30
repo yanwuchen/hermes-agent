@@ -1,6 +1,6 @@
 ---
 name: hermes-finance
-description: 通过 Finance 工具完成可核验的财务记账与查询。
+description: 通过 Finance 工具完成可核验的财务记账与查询.
 version: 0.2.0
 author: yanwuchen (@yanwuchen), Hermes Agent
 license: MIT
