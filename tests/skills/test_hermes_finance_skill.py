@@ -21,4 +21,4 @@ def test_finance_skill_frontmatter_and_scope():
 def test_finance_skill_withholds_sensitive_inputs(secret):
     text = SKILL.read_text(encoding="utf-8")
     assert secret in text
-    assert "不要发送密码、验证码、任务 token、HMAC 或 QQ 身份到模型" in text
+    assert "不发送密码、验证码、任务 token、HMAC 或 QQ 身份到模型" in text
