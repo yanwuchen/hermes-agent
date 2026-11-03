@@ -20,6 +20,30 @@ def _make_config(**extra):
     return PlatformConfig(enabled=True, extra=extra)
 
 
+@pytest.mark.asyncio
+async def test_qq_ingest_preserves_platform_message_id_on_source():
+    """A model tool must receive the original event ID in the bound session source."""
+    from gateway.platforms.qqbot import QQAdapter
+
+    adapter = QQAdapter(_make_config(app_id="test", client_secret="test"))
+    adapter._process_attachments = mock.AsyncMock(return_value={
+        "voice_transcripts": [], "attachment_info": "", "image_urls": [],
+        "image_media_types": [],
+    })
+    adapter._process_quoted_context = mock.AsyncMock(return_value={
+        "quote_block": "", "image_urls": [], "image_media_types": [],
+    })
+    adapter.handle_message = mock.AsyncMock()
+
+    await adapter._ingest({}, "qq-event-42", "午饭花了19块", [], "", chat_id="user-a",
+                          qq_chat_type="c2c", user_id="user-a", chat_type="dm")
+
+    event = adapter.handle_message.await_args.args[0]
+    assert event.message_id == event.source.message_id == "qq-event-42"
+    assert adapter._source_session_key(event.source) == adapter._source_session_key(
+        adapter.build_source(chat_id="user-a", user_id="user-a", chat_type="dm"))
+
+
 # ---------------------------------------------------------------------------
 # check_qq_requirements
 # ---------------------------------------------------------------------------
