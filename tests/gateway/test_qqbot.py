@@ -43,6 +43,23 @@ async def test_qq_ingest_preserves_platform_message_id_on_source():
     assert adapter._source_session_key(event.source) == adapter._source_session_key(
         adapter.build_source(chat_id="user-a", user_id="user-a", chat_type="dm"))
 
+    from gateway.run import GatewayRunner
+    from gateway.session import SessionContext
+    from gateway.session_context import _VAR_MAP, clear_session_vars
+
+    runner = GatewayRunner.__new__(GatewayRunner)
+    runner.adapters = {}
+    context = SessionContext(source=event.source, connected_platforms=[], home_channels={},
+                             session_key=adapter._source_session_key(event.source))
+    tokens = runner._set_session_env(context)
+    try:
+        assert _VAR_MAP["HERMES_SESSION_PLATFORM"].get() == "qqbot"
+        assert _VAR_MAP["HERMES_SESSION_CHAT_TYPE"].get() == "dm"
+        assert _VAR_MAP["HERMES_SESSION_USER_ID"].get() == "user-a"
+        assert _VAR_MAP["HERMES_SESSION_MESSAGE_ID"].get() == "qq-event-42"
+    finally:
+        clear_session_vars(tokens)
+
 
 # ---------------------------------------------------------------------------
 # check_qq_requirements
