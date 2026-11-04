@@ -20,6 +20,47 @@ def _make_config(**extra):
     return PlatformConfig(enabled=True, extra=extra)
 
 
+@pytest.mark.asyncio
+async def test_qq_ingest_preserves_platform_message_id_on_source():
+    """A model tool must receive the original event ID in the bound session source."""
+    from gateway.platforms.qqbot import QQAdapter
+
+    adapter = QQAdapter(_make_config(app_id="test", client_secret="test"))
+    adapter._process_attachments = mock.AsyncMock(return_value={
+        "voice_transcripts": [], "attachment_info": "", "image_urls": [],
+        "image_media_types": [],
+    })
+    adapter._process_quoted_context = mock.AsyncMock(return_value={
+        "quote_block": "", "image_urls": [], "image_media_types": [],
+    })
+    adapter.handle_message = mock.AsyncMock()
+
+    await adapter._ingest({}, "qq-event-42", "午饭花了19块", [], "", chat_id="user-a",
+                          qq_chat_type="c2c", user_id="user-a", chat_type="dm")
+
+    event = adapter.handle_message.await_args.args[0]
+    assert event.message_id == event.source.message_id == "qq-event-42"
+    assert adapter._source_session_key(event.source) == adapter._source_session_key(
+        adapter.build_source(chat_id="user-a", user_id="user-a", chat_type="dm"))
+
+    from gateway.run import GatewayRunner
+    from gateway.session import SessionContext
+    from gateway.session_context import _VAR_MAP, clear_session_vars
+
+    runner = GatewayRunner.__new__(GatewayRunner)
+    runner.adapters = {}
+    context = SessionContext(source=event.source, connected_platforms=[], home_channels={},
+                             session_key=adapter._source_session_key(event.source))
+    tokens = runner._set_session_env(context)
+    try:
+        assert _VAR_MAP["HERMES_SESSION_PLATFORM"].get() == "qqbot"
+        assert _VAR_MAP["HERMES_SESSION_CHAT_TYPE"].get() == "dm"
+        assert _VAR_MAP["HERMES_SESSION_USER_ID"].get() == "user-a"
+        assert _VAR_MAP["HERMES_SESSION_MESSAGE_ID"].get() == "qq-event-42"
+    finally:
+        clear_session_vars(tokens)
+
+
 # ---------------------------------------------------------------------------
 # check_qq_requirements
 # ---------------------------------------------------------------------------

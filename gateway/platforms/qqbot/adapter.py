@@ -846,7 +846,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
 
         self._chat_type_map[chat_id] = qq_chat_type
         event = MessageEvent(
-            source=self.build_source(chat_id=chat_id,** source_kwargs), text=text,
+            source=self.build_source(chat_id=chat_id, message_id=msg_id, **source_kwargs), text=text,
             message_type=self._detect_message_type(image_urls, image_media_types), raw_message=d,
             message_id=msg_id, media_urls=image_urls, media_types=image_media_types,
             timestamp=self._parse_qq_timestamp(timestamp),
